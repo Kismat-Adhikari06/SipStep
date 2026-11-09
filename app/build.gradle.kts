@@ -33,5 +33,6 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.google.play.services.location)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

@@ -1,0 +1,12 @@
+<resources>
+    <style name="Theme.KismatPath" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#087F5B</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">#F5F7F4</item>
+        <item name="android:navigationBarColor">#F5F7F4</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowSplashScreenBackground">#071830</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/mascot_app_icon_foreground</item>
+    </style>
+</resources>

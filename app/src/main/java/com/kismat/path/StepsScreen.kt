@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -21,6 +23,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,10 +49,17 @@ internal fun StepsScreen(
     steps: Long,
     sensorAvailable: Boolean,
     permissionGranted: Boolean,
+    drivingFilterEnabled: Boolean,
+    vehicleDetected: Boolean,
+    stepsPaused: Boolean,
+    manuallyPaused: Boolean,
     onEnableSteps: () -> Unit,
+    onToggleDrivingFilter: (Boolean) -> Unit,
+    onToggleManualPause: () -> Unit,
     onResetSteps: () -> Unit
 ) {
     var showResetConfirmation by remember { mutableStateOf(false) }
+    var showDrivingExplanation by remember { mutableStateOf(false) }
     val progress = (steps.toFloat() / REFERENCE_GOAL).coerceIn(0f, 1f)
     val formattedSteps = NumberFormat.getIntegerInstance().format(steps)
     val mascotPose = when {
@@ -58,16 +68,17 @@ internal fun StepsScreen(
         else -> MascotPose.WALKING
     }
 
-    Column(
-        Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp),
+    Column(Modifier.fillMaxSize()) {
+      Column(
+        Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
+      ) {
         Card(
             colors = CardDefaults.cardColors(containerColor = Color.White),
             shape = RoundedCornerShape(24.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 24.dp)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 20.dp)) {
                 BoxWithConstraints(Modifier.fillMaxWidth()) {
                     val mascotSize = if (maxWidth < 270.dp) 68.dp else 84.dp
                     val countSize = when {
@@ -96,7 +107,7 @@ internal fun StepsScreen(
                     }
                     }
                 }
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(16.dp))
                 Box(Modifier.fillMaxWidth().height(10.dp).clip(CircleShape).background(Color(0xFFE6EFF8))) {
                     Box(Modifier.fillMaxWidth(progress).height(10.dp).clip(CircleShape).background(StepBlue))
                 }
@@ -105,10 +116,10 @@ internal fun StepsScreen(
                     Text("${(progress * 100).toInt()}%", color = StepBlue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Text("10,000 step reference", color = StepMuted, fontSize = 13.sp)
                 }
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = { if (!permissionGranted) onEnableSteps() else showResetConfirmation = true },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = if (permissionGranted) ButtonDefaults.buttonColors(
                         containerColor = Color(0xFFEAF2FA), contentColor = StepBlue
@@ -124,24 +135,68 @@ internal fun StepsScreen(
             shape = RoundedCornerShape(20.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
-            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.clip(CircleShape).background(if (permissionGranted && sensorAvailable) Color(0xFFE8F5EF) else Color(0xFFFFF4DF)).padding(horizontal = 11.dp, vertical = 8.dp)) {
-                    Text(if (permissionGranted && sensorAvailable) "ON" else "OFF", color = if (permissionGranted && sensorAvailable) Color(0xFF287547) else Color(0xFF946000), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.clip(CircleShape).background(if (permissionGranted && sensorAvailable) Color(0xFFE8F5EF) else Color(0xFFFFF4DF)).padding(horizontal = 11.dp, vertical = 8.dp)) {
+                        Text(if (permissionGranted && sensorAvailable) "ON" else "OFF", color = if (permissionGranted && sensorAvailable) Color(0xFF287547) else Color(0xFF946000), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                        Text("Step tracking", color = StepInk, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(
+                            when {
+                                !permissionGranted -> "Allow activity access to start counting."
+                                !sensorAvailable -> "This phone doesn’t have a step counter sensor."
+                                else -> "Using your phone’s built-in step sensor."
+                            },
+                            color = StepMuted, fontSize = 12.sp, lineHeight = 17.sp
+                        )
+                    }
                 }
-                Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                    Text("Step tracking", color = StepInk, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Automatic driving pause", color = StepInk, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(
+                            when {
+                                stepsPaused && vehicleDetected -> "Paused while vehicle activity is detected"
+                                stepsPaused && manuallyPaused -> "Paused by you"
+                                drivingFilterEnabled -> "On · pauses only for confident vehicle detections"
+                                else -> "Off · steps count as usual"
+                            },
+                            color = if (stepsPaused) Color(0xFF946000) else StepMuted,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp
+                        )
+                    }
+                    Switch(
+                        checked = drivingFilterEnabled,
+                        onCheckedChange = { enabled ->
+                            if (enabled) showDrivingExplanation = true else onToggleDrivingFilter(false)
+                        },
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+                Text(
+                    "Detection may be delayed; steps already counted stay saved.",
+                    color = StepMuted, fontSize = 11.sp, lineHeight = 15.sp
+                )
+                Button(
+                    onClick = onToggleManualPause,
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = if (stepsPaused) ButtonDefaults.buttonColors(containerColor = Color(0xFFEAF2FA), contentColor = StepBlue) else ButtonDefaults.buttonColors(containerColor = StepBlue)
+                ) {
                     Text(
                         when {
-                            !permissionGranted -> "Allow activity access to start counting."
-                            !sensorAvailable -> "This phone doesn’t have a step counter sensor."
-                            else -> "Using your phone’s built-in step sensor."
+                            stepsPaused && vehicleDetected -> "Resume steps anyway"
+                            stepsPaused -> "Resume steps"
+                            else -> "Pause steps manually"
                         },
-                        color = StepMuted, fontSize = 12.sp, lineHeight = 17.sp
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
         }
-        Spacer(Modifier.weight(1f))
+      }
     }
 
     if (showResetConfirmation) {
@@ -153,6 +208,27 @@ internal fun StepsScreen(
                 TextButton(onClick = { onResetSteps(); showResetConfirmation = false }) { Text("Reset") }
             },
             dismissButton = { TextButton(onClick = { showResetConfirmation = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showDrivingExplanation) {
+        AlertDialog(
+            onDismissRequest = { showDrivingExplanation = false },
+            title = { Text("Pause steps during vehicle trips?") },
+            text = {
+                Text(
+                    "SipStep uses Android’s activity estimate to pause step counting when it confidently detects a vehicle trip. It resumes when another activity is confidently detected. This can be delayed or wrong, so you can also pause or resume steps yourself. Activity estimates stay on this phone."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDrivingExplanation = false
+                    onToggleDrivingFilter(true)
+                }) { Text("Enable driving pause") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDrivingExplanation = false }) { Text("Not now") }
+            }
         )
     }
 }

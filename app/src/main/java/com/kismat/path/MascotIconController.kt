@@ -12,6 +12,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.os.Build
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -38,6 +41,10 @@ internal object MascotIconController {
     private const val KEY_IDLE_NOTIFIED_FOR = "idle_notified_for"
     private const val KEY_LAST_MILESTONE = "last_step_milestone"
     private const val KEY_WATER_ICON = "water_icon"
+    private const val KEY_WATER_ICON_DAY = "water_icon_day"
+    private const val KEY_FIRST_WATER_NUDGE_DAY = "first_water_nudge_day"
+    private const val KEY_PENDING_WATER_NUDGE_DAY = "pending_water_nudge_day"
+    private const val KEY_PENDING_WATER_NUDGE_AT = "pending_water_nudge_at"
 
     private const val IDLE_DELAY_MS = 24L * 60 * 60 * 1000
     private const val WALKING_DELAY_MS = 60L * 60 * 1000
@@ -45,41 +52,72 @@ internal object MascotIconController {
     private const val ACTION_WALKING_EXPIRED = "com.kismat.path.MASCOT_WALKING_EXPIRED"
     private const val ALARM_IDLE = 7301
     private const val ALARM_WALKING = 7302
+    private const val ALARM_WATER_NUDGE = 7304
     private const val IDLE_NOTIFICATION = 7303
     private const val STEP_NOTIFICATION_BASE = 7400
     private const val CHANNEL_MOMENTS = "mascot_moments_v1"
+    private const val WATER_NUDGE_DELAY_MS = 30L * 60 * 1000
+    private const val ACTION_WATER_NUDGE_EXPIRED = "com.kismat.path.WATER_NUDGE_EXPIRED"
 
     private val allIcons = MascotAppIcon.entries
 
     fun onAppOpened(context: Context) {
         val now = System.currentTimeMillis()
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putLong(KEY_LAST_ACTIVITY, now)
-            .putLong(KEY_IDLE_NOTIFIED_FOR, 0L)
-            .putString(KEY_WATER_ICON, MascotAppIcon.FRIENDLY.name)
-            .apply()
-        setIcon(context, MascotAppIcon.FRIENDLY, "app")
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val today = dayKey(now)
+        val source = p.getString(KEY_SOURCE, "")
+        val lastStep = p.getLong(KEY_LAST_STEP, 0L)
+        val waterDay = p.getString(KEY_WATER_ICON_DAY, "")
+        if (waterDay != today) {
+            val todayWaterIcon = if (WaterStore.todayEntries(context).sumOf { it.amountMl } > 0) {
+                waterIcon(context)
+            } else {
+                MascotAppIcon.FRIENDLY
+            }
+            p.edit().putString(KEY_WATER_ICON, todayWaterIcon.name).putString(KEY_WATER_ICON_DAY, today).apply()
+            val stepActivityIsFromToday = lastStep > 0L && dayKey(lastStep) == today
+            if (source == "idle" || source == "water" || source == "water_ignored" || (source == "steps" && !stepActivityIsFromToday)) {
+                setIcon(context, todayWaterIcon, if (todayWaterIcon == MascotAppIcon.FRIENDLY) "app" else "water")
+            }
+        }
+        p.edit().putLong(KEY_LAST_ACTIVITY, now).putLong(KEY_IDLE_NOTIFIED_FOR, 0L).apply()
         scheduleIdleCheck(context, now + IDLE_DELAY_MS)
     }
 
     fun onWaterLogged(context: Context) {
+        clearPendingWaterNudge(context)
         recordActivity(context)
         val icon = waterIcon(context)
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString(KEY_WATER_ICON, icon.name).apply()
+            .putString(KEY_WATER_ICON, icon.name).putString(KEY_WATER_ICON_DAY, dayKey(System.currentTimeMillis())).apply()
         setIcon(context, icon, "water")
     }
 
-    fun onWaterReminder(context: Context) {
+    /** Returns true while the first no-water reminder of today is awaiting a drink. */
+    fun onWaterReminder(context: Context): Boolean {
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val lastActivity = p.getLong(KEY_LAST_ACTIVITY, 0L)
-        if (lastActivity > 0L && System.currentTimeMillis() - lastActivity >= IDLE_DELAY_MS) {
-            setIcon(context, MascotAppIcon.BROKEN, "idle")
-            return
+        val now = System.currentTimeMillis()
+        val today = dayKey(now)
+        if (WaterStore.todayEntries(context).sumOf { it.amountMl } > 0) {
+            clearPendingWaterNudge(context)
+            return false
         }
-        val icon = waterIcon(context)
-        p.edit().putString(KEY_WATER_ICON, icon.name).apply()
-        setIcon(context, icon, "water")
+        if (p.getString(KEY_PENDING_WATER_NUDGE_DAY, null) == today) {
+            val dueAt = p.getLong(KEY_PENDING_WATER_NUDGE_AT, now + WATER_NUDGE_DELAY_MS)
+            if (now < dueAt) return true
+            onWaterNudgeExpired(context)
+            return false
+        }
+        if (p.getString(KEY_FIRST_WATER_NUDGE_DAY, null) == today) return false
+
+        val dueAt = now + WATER_NUDGE_DELAY_MS
+        p.edit()
+            .putString(KEY_FIRST_WATER_NUDGE_DAY, today)
+            .putString(KEY_PENDING_WATER_NUDGE_DAY, today)
+            .putLong(KEY_PENDING_WATER_NUDGE_AT, dueAt)
+            .apply()
+        scheduleWaterNudgeExpiry(context, dueAt)
+        return true
     }
 
     fun currentIcon(context: Context): MascotAppIcon = context
@@ -117,13 +155,42 @@ internal object MascotIconController {
     fun onBoot(context: Context) {
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val lastActivity = p.getLong(KEY_LAST_ACTIVITY, 0L)
-        if (lastActivity == 0L) return
         val now = System.currentTimeMillis()
-        scheduleIdleCheck(context, maxOf(now + 1_000L, lastActivity + IDLE_DELAY_MS))
+        if (lastActivity > 0L) scheduleIdleCheck(context, maxOf(now + 1_000L, lastActivity + IDLE_DELAY_MS))
         val lastStep = p.getLong(KEY_LAST_STEP, 0L)
         if (lastStep > 0L && now - lastStep < WALKING_DELAY_MS && p.getString(KEY_SOURCE, "") == "steps") {
             scheduleWalkingExpiry(context, lastStep + WALKING_DELAY_MS)
         }
+        if (p.getString(KEY_PENDING_WATER_NUDGE_DAY, null) == dayKey(now)) {
+            if (WaterStore.todayEntries(context).sumOf { it.amountMl } > 0) {
+                clearPendingWaterNudge(context)
+            } else {
+                val dueAt = p.getLong(KEY_PENDING_WATER_NUDGE_AT, now)
+                if (dueAt <= now) onWaterNudgeExpired(context) else scheduleWaterNudgeExpiry(context, dueAt)
+            }
+        }
+    }
+
+    internal fun onWaterNudgeExpired(context: Context) {
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val today = dayKey(now)
+        if (p.getString(KEY_PENDING_WATER_NUDGE_DAY, null) != today) return
+        val dueAt = p.getLong(KEY_PENDING_WATER_NUDGE_AT, now)
+        if (now < dueAt) {
+            scheduleWaterNudgeExpiry(context, dueAt)
+            return
+        }
+        if (WaterStore.todayEntries(context).sumOf { it.amountMl } > 0) {
+            clearPendingWaterNudge(context)
+            return
+        }
+        clearPendingWaterNudge(context)
+        p.edit()
+            .putString(KEY_WATER_ICON, MascotAppIcon.DRY.name)
+            .putString(KEY_WATER_ICON_DAY, today)
+            .apply()
+        setIcon(context, MascotAppIcon.DRY, "water_ignored")
     }
 
     internal fun onIdleCheck(context: Context) {
@@ -213,6 +280,32 @@ internal object MascotIconController {
     private fun scheduleIdleCheck(context: Context, at: Long) = schedule(context, ACTION_IDLE_CHECK, ALARM_IDLE, at)
     private fun scheduleWalkingExpiry(context: Context, at: Long) = schedule(context, ACTION_WALKING_EXPIRED, ALARM_WALKING, at)
 
+    private fun scheduleWaterNudgeExpiry(context: Context, at: Long) {
+        val intent = Intent(context, MascotStateReceiver::class.java).setAction(ACTION_WATER_NUDGE_EXPIRED)
+        val pending = PendingIntent.getBroadcast(
+            context, ALARM_WATER_NUDGE, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val alarms = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
+    }
+
+    private fun clearPendingWaterNudge(context: Context) {
+        val intent = Intent(context, MascotStateReceiver::class.java).setAction(ACTION_WATER_NUDGE_EXPIRED)
+        val pending = PendingIntent.getBroadcast(
+            context, ALARM_WATER_NUDGE, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pending)
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .remove(KEY_PENDING_WATER_NUDGE_DAY)
+            .remove(KEY_PENDING_WATER_NUDGE_AT)
+            .apply()
+    }
+
+    private fun dayKey(timestamp: Long): String =
+        SimpleDateFormat("yyyyMMdd", Locale.US).format(Date(timestamp))
+
     private fun schedule(context: Context, action: String, requestCode: Int, at: Long) {
         val intent = Intent(context, MascotStateReceiver::class.java).setAction(action)
         val pending = PendingIntent.getBroadcast(
@@ -282,6 +375,7 @@ internal object MascotIconController {
 
     internal const val IDLE_ACTION = ACTION_IDLE_CHECK
     internal const val WALKING_EXPIRED_ACTION = ACTION_WALKING_EXPIRED
+    internal const val WATER_NUDGE_EXPIRED_ACTION = ACTION_WATER_NUDGE_EXPIRED
 }
 
 class MascotStateReceiver : BroadcastReceiver() {
@@ -289,6 +383,7 @@ class MascotStateReceiver : BroadcastReceiver() {
         when (intent?.action) {
             MascotIconController.IDLE_ACTION -> MascotIconController.onIdleCheck(context)
             MascotIconController.WALKING_EXPIRED_ACTION -> MascotIconController.onWalkingExpired(context)
+            MascotIconController.WATER_NUDGE_EXPIRED_ACTION -> MascotIconController.onWaterNudgeExpired(context)
         }
     }
 }

@@ -134,47 +134,51 @@ class WaterReminderReceiver : BroadcastReceiver() {
 
     private fun postReminder(context: Context, timeLabel: String?) {
         createNotificationChannel(context)
-        MascotIconController.onWaterReminder(context)
         val canNotify = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(
             context, Manifest.permission.POST_NOTIFICATIONS
         ) == PackageManager.PERMISSION_GRANTED
-        if (canNotify && NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-            val mascot = BitmapFactory.decodeResource(context.resources, MascotIconController.currentIcon(context).image)
-            val name = ProfileStore.displayName(context)
-            val totalMl = WaterStore.todayEntries(context).sumOf { it.amountMl }
-            val goalMl = WaterStore.goal(context).coerceAtLeast(1)
-            val isDry = totalMl.toFloat() / goalMl < .2f
-            val title = when {
-                isDry && name.isNotBlank() -> "$name, Wello is feeling dry"
-                isDry -> "Wello is feeling dry"
-                name.isBlank() && timeLabel != null -> "Water reminder · $timeLabel"
-                name.isBlank() -> "Time for a sip of water"
-                timeLabel != null -> "$name, your water reminder · $timeLabel"
-                else -> "$name, time for a sip of water"
-            }
-            val content = when {
-                isDry -> "$totalMl of $goalMl ml logged today. Time for a sip, if you need one."
-                totalMl > goalMl -> "You’re above your $goalMl ml daily goal ($totalMl ml today)."
-                totalMl == goalMl -> "You’ve reached your $goalMl ml daily goal today."
-                totalMl == 0 -> "No water logged yet today. Start with a glass when you can."
-                else -> "$totalMl of $goalMl ml today. A little water break can help you stay on track."
-            }
-            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_kismat_mark)
-                .setLargeIcon(mascot)
-                .setContentTitle(title)
-                .setContentText(content)
-                .setStyle(NotificationCompat.BigPictureStyle().bigPicture(mascot))
-                .setCategory(NotificationCompat.CATEGORY_REMINDER)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setAutoCancel(true)
-                .setContentIntent(PendingIntent.getActivity(
-                    context, 4103, Intent(context, MainActivity::class.java),
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                ))
-                .build()
-            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+        if (!canNotify || !NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+
+        val totalMl = WaterStore.todayEntries(context).sumOf { it.amountMl }
+        val firstConcern = MascotIconController.onWaterReminder(context)
+        val mascotResource = if (firstConcern) R.drawable.mascot_dry else MascotIconController.currentIcon(context).image
+        val mascot = BitmapFactory.decodeResource(context.resources, mascotResource)
+        val name = ProfileStore.displayName(context)
+        val goalMl = WaterStore.goal(context).coerceAtLeast(1)
+        val isDry = totalMl.toFloat() / goalMl < .2f
+        val title = when {
+            firstConcern && name.isNotBlank() -> "Hey, $name, have you had any water yet?"
+            firstConcern -> "Hey, have you had any water yet?"
+            isDry && name.isNotBlank() -> "$name, Wello is feeling dry"
+            isDry -> "Wello is feeling dry"
+            name.isBlank() && timeLabel != null -> "Water reminder · $timeLabel"
+            name.isBlank() -> "Time for a sip of water"
+            timeLabel != null -> "$name, your water reminder · $timeLabel"
+            else -> "$name, time for a sip of water"
         }
+        val content = when {
+            firstConcern -> "Nothing logged today yet. A small drink when you can is a good start."
+            isDry -> "$totalMl of $goalMl ml logged today. Time for a sip, if you need one."
+            totalMl > goalMl -> "You’re above your $goalMl ml daily goal ($totalMl ml today)."
+            totalMl == goalMl -> "You’ve reached your $goalMl ml daily goal today."
+            totalMl == 0 -> "No water logged yet today. Start with a glass when you can."
+            else -> "$totalMl of $goalMl ml today. A little water break can help you stay on track."
+        }
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_kismat_mark)
+            .setLargeIcon(mascot)
+            .setContentTitle(title)
+            .setContentText(content)
+            .setStyle(NotificationCompat.BigPictureStyle().bigPicture(mascot))
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(PendingIntent.getActivity(
+                context, 4103, Intent(context, MainActivity::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            ))
+            .build()
+        NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
     }
 
     private fun createNotificationChannel(context: Context) {
