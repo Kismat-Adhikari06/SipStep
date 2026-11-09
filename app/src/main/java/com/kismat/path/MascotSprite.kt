@@ -25,6 +25,18 @@ internal enum class MascotPose(val image: Int, val scale: Float = 1f) {
     OVERFULL(R.drawable.mascot_overfull)
 }
 
+internal fun waterMascotPose(totalMl: Long, goalMl: Int): MascotPose {
+    val progress = totalMl.toDouble() / goalMl.coerceAtLeast(1)
+    return when {
+        progress > 1.0 -> MascotPose.OVERFULL
+        progress >= 1.0 -> MascotPose.STAR
+        progress < 0.2 -> MascotPose.DEHYDRATED
+        progress < 0.45 -> MascotPose.DRINKING
+        progress < 0.8 -> MascotPose.REFRESHED
+        else -> MascotPose.BOTTLE_CHEER
+    }
+}
+
 /** Shared mascot renderer: transparent, individually cropped art using contain sizing. */
 @Composable
 internal fun MascotSprite(

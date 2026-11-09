@@ -125,14 +125,7 @@ internal fun WaterScreen(
     val isAboveGoal = rawProgress > 1f
     val progress = rawProgress.coerceIn(0f, 1f)
     val dateLabel = remember(refreshToken) { SimpleDateFormat("EEEE, d MMM", Locale.getDefault()).format(Date()) }
-    val avatarPose = when {
-        rawProgress > 1f -> MascotPose.OVERFULL
-        rawProgress >= 1f -> MascotPose.STAR
-        rawProgress < .2f -> MascotPose.DEHYDRATED
-        rawProgress < .45f -> MascotPose.DRINKING
-        rawProgress < .8f -> MascotPose.REFRESHED
-        else -> MascotPose.BOTTLE_CHEER
-    }
+    val avatarPose = waterMascotPose(totalMl.toLong(), goal)
     val nextReminder = when {
         remindersEnabled -> "Every $reminderInterval min"
         dailyReminderMinutes.isNotEmpty() -> dailyReminderMinutes.joinToString(", ") { formatMinute(it) }

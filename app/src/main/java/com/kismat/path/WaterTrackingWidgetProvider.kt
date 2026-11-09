@@ -48,6 +48,7 @@ class WaterTrackingWidgetProvider : AppWidgetProvider() {
         private const val SECTION_WATER = "water"
         private const val ADD_REQUEST_BASE = 8100
         private const val OPEN_REQUEST_BASE = 8200
+        private const val COMPACT_WIDTH_THRESHOLD_DP = 230
         fun refreshAll(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
             val provider = ComponentName(context, WaterTrackingWidgetProvider::class.java)
@@ -57,9 +58,17 @@ class WaterTrackingWidgetProvider : AppWidgetProvider() {
         }
 
         private fun updateOne(context: Context, manager: AppWidgetManager, appWidgetId: Int) {
-            val views = RemoteViews(context.packageName, R.layout.widget_water_tracking)
-            val total = WaterStore.todayEntries(context).sumOf { it.amountMl }
+            val options = manager.getAppWidgetOptions(appWidgetId)
+            val minWidthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250)
+            val layout = if (minWidthDp < COMPACT_WIDTH_THRESHOLD_DP) {
+                R.layout.widget_water_tracking_compact
+            } else {
+                R.layout.widget_water_tracking
+            }
+            val views = RemoteViews(context.packageName, layout)
+            val total = WaterStore.todayEntries(context).sumOf { it.amountMl.toLong() }
             val goal = WaterStore.configuredGoal(context)
+            val mascotPose = waterMascotPose(total, WaterStore.goal(context))
             val numberFormat = NumberFormat.getIntegerInstance()
 
             val totalLabel = "${numberFormat.format(total)} ml"
@@ -103,8 +112,16 @@ class WaterTrackingWidgetProvider : AppWidgetProvider() {
                 )
             }
 
-            views.setImageViewResource(R.id.widget_mascot, R.drawable.mascot_wave)
-            views.setContentDescription(R.id.widget_mascot, "Wello waves beside your water progress")
+            views.setImageViewResource(R.id.widget_mascot, mascotPose.image)
+            views.setContentDescription(R.id.widget_mascot, when (mascotPose) {
+                MascotPose.DEHYDRATED -> "Wello looks dry; water progress is just starting."
+                MascotPose.DRINKING -> "Wello drinks water and looks refreshed."
+                MascotPose.REFRESHED -> "Wello feels refreshed as water progress grows."
+                MascotPose.BOTTLE_CHEER -> "Wello cheers with a water bottle near the daily goal."
+                MascotPose.STAR -> "Wello celebrates reaching the daily water goal."
+                MascotPose.OVERFULL -> "Wello shows water progress above the daily goal."
+                else -> "Wello waves beside your water progress."
+            })
             views.setContentDescription(R.id.widget_add_button, "Add 250 milliliters of water")
             views.setOnClickPendingIntent(R.id.widget_root, openWaterPendingIntent(context, appWidgetId))
             views.setOnClickPendingIntent(R.id.widget_add_button, addWaterPendingIntent(context, appWidgetId))
