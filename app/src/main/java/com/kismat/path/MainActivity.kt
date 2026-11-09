@@ -72,6 +72,7 @@ class MainActivity : ComponentActivity() {
             var headerMascotImage by remember { mutableIntStateOf(MascotIconController.currentIcon(context).image) }
             var sensorAvailable by remember { mutableStateOf(StepStore.sensorAvailable(context)) }
             var drivingFilterEnabled by remember { mutableStateOf(StepStore.drivingFilterEnabled(context)) }
+            var drivingRecognitionStatus by remember { mutableStateOf(StepStore.drivingRecognitionStatus(context)) }
             var vehicleDetected by remember { mutableStateOf(StepStore.vehicleDetected(context)) }
             var stepsPaused by remember { mutableStateOf(StepStore.isPaused(context)) }
             var manuallyPaused by remember { mutableStateOf(StepStore.isManuallyPaused(context)) }
@@ -122,6 +123,7 @@ class MainActivity : ComponentActivity() {
                     headerMascotImage = MascotIconController.currentIcon(context).image
                     sensorAvailable = StepStore.sensorAvailable(context)
                     drivingFilterEnabled = StepStore.drivingFilterEnabled(context)
+                    drivingRecognitionStatus = StepStore.drivingRecognitionStatus(context)
                     vehicleDetected = StepStore.vehicleDetected(context)
                     stepsPaused = StepStore.isPaused(context)
                     manuallyPaused = StepStore.isManuallyPaused(context)
@@ -180,6 +182,7 @@ class MainActivity : ComponentActivity() {
                                     sensorAvailable = sensorAvailable,
                                     permissionGranted = permissionGranted,
                                     drivingFilterEnabled = drivingFilterEnabled,
+                                    drivingRecognitionStatus = drivingRecognitionStatus,
                                     vehicleDetected = vehicleDetected,
                                     stepsPaused = stepsPaused,
                                     manuallyPaused = manuallyPaused,

@@ -50,6 +50,7 @@ internal fun StepsScreen(
     sensorAvailable: Boolean,
     permissionGranted: Boolean,
     drivingFilterEnabled: Boolean,
+    drivingRecognitionStatus: String,
     vehicleDetected: Boolean,
     stepsPaused: Boolean,
     manuallyPaused: Boolean,
@@ -159,7 +160,9 @@ internal fun StepsScreen(
                             when {
                                 stepsPaused && vehicleDetected -> "Paused while vehicle activity is detected"
                                 stepsPaused && manuallyPaused -> "Paused by you"
-                                drivingFilterEnabled -> "On · pauses only for confident vehicle detections"
+                                drivingFilterEnabled && drivingRecognitionStatus == "unavailable" -> "Android activity recognition unavailable; use manual pause"
+                                drivingFilterEnabled && drivingRecognitionStatus != "ready" -> "Waiting for Android activity recognition"
+                                drivingFilterEnabled -> "Listening for confident vehicle and walking estimates"
                                 else -> "Off · steps count as usual"
                             },
                             color = if (stepsPaused) Color(0xFF946000) else StepMuted,

@@ -10,6 +10,7 @@ internal object StepStore {
     private const val KEY_DRIVING_FILTER_ENABLED = "driving_filter_enabled"
     private const val KEY_VEHICLE_DETECTED = "vehicle_detected"
     private const val KEY_MANUAL_OVERRIDE = "manual_pause_override"
+    private const val KEY_DRIVING_RECOGNITION_AVAILABLE = "driving_recognition_available"
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -32,6 +33,13 @@ internal object StepStore {
 
     fun vehicleDetected(context: Context): Boolean =
         prefs(context).getBoolean(KEY_VEHICLE_DETECTED, false)
+
+    fun drivingRecognitionStatus(context: Context): String =
+        prefs(context).getString(KEY_DRIVING_RECOGNITION_AVAILABLE, "unknown") ?: "unknown"
+
+    fun setDrivingRecognitionStatus(context: Context, status: String) {
+        prefs(context).edit().putString(KEY_DRIVING_RECOGNITION_AVAILABLE, status).apply()
+    }
 
     fun setVehicleDetected(context: Context, detected: Boolean) {
         val editor = prefs(context).edit().putBoolean(KEY_VEHICLE_DETECTED, detected)

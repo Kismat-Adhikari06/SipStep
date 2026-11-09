@@ -97,9 +97,13 @@ class StepCounterService : Service(), SensorEventListener {
         ).also { activityRecognitionPendingIntent = it }
 
         if (StepStore.drivingFilterEnabled(this)) {
+            StepStore.setDrivingRecognitionStatus(this, "waiting")
             client.requestActivityUpdates(ACTIVITY_UPDATE_INTERVAL_MS, pendingIntent)
+                .addOnSuccessListener { StepStore.setDrivingRecognitionStatus(this, "ready") }
+                .addOnFailureListener { StepStore.setDrivingRecognitionStatus(this, "unavailable") }
         } else {
             client.removeActivityUpdates(pendingIntent)
+            StepStore.setDrivingRecognitionStatus(this, "off")
         }
     }
 
