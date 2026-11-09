@@ -60,6 +60,20 @@ internal object MascotIconController {
     private const val ACTION_WATER_NUDGE_EXPIRED = "com.kismat.path.WATER_NUDGE_EXPIRED"
 
     private val allIcons = MascotAppIcon.entries
+    @Volatile private var appIsVisible = false
+    @Volatile private var launcherIconSyncPending = false
+
+    fun onAppForegrounded() {
+        appIsVisible = true
+        // Reconcile the manifest alias with the saved mascot after upgrades or
+        // process restarts, without changing it while this Activity is visible.
+        launcherIconSyncPending = true
+    }
+
+    fun onAppBackgrounded(context: Context) {
+        appIsVisible = false
+        if (launcherIconSyncPending) applyLauncherIcon(context, currentIcon(context))
+    }
 
     fun onAppOpened(context: Context) {
         val now = System.currentTimeMillis()
@@ -251,8 +265,28 @@ internal object MascotIconController {
         p.edit().putString(KEY_ICON, icon.name).putString(KEY_SOURCE, source).apply()
         if (previous == icon.name) return
 
+        // Disabling the launcher alias that opened the current Activity can make
+        // some launchers recreate it or return to Home. Save the desired mascot
+        // immediately, then apply the icon after SipStep is no longer visible.
+        if (appIsVisible) {
+            launcherIconSyncPending = true
+            return
+        }
+        applyLauncherIcon(context, icon)
+    }
+
+    private fun applyLauncherIcon(context: Context, icon: MascotAppIcon) {
         val packageManager = context.packageManager
-        val target = ComponentName(context.packageName, "${context.packageName}.${icon.launcherAlias}")
+        val alreadyApplied = allIcons.all { candidate ->
+            val component = ComponentName(context.packageName, "${context.packageName}.${candidate.launcherAlias}")
+            val expected = if (candidate == icon) PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+            else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+            packageManager.getComponentEnabledSetting(component) == expected
+        }
+        if (alreadyApplied) {
+            launcherIconSyncPending = false
+            return
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val changes = allIcons.map { candidate ->
                 PackageManager.ComponentEnabledSetting(
@@ -264,6 +298,7 @@ internal object MascotIconController {
             }
             packageManager.setComponentEnabledSettings(changes)
         } else {
+            val target = ComponentName(context.packageName, "${context.packageName}.${icon.launcherAlias}")
             packageManager.setComponentEnabledSetting(
                 target, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP
             )
@@ -275,6 +310,7 @@ internal object MascotIconController {
                 )
             }
         }
+        launcherIconSyncPending = false
     }
 
     private fun scheduleIdleCheck(context: Context, at: Long) = schedule(context, ACTION_IDLE_CHECK, ALARM_IDLE, at)

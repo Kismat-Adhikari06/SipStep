@@ -57,10 +57,22 @@ private val Cloud = Color(0xFFF3F7FB)
 
 class MainActivity : ComponentActivity() {
     private var sectionSelection: ((String) -> Unit)? = null
+    private var refreshWaterOnResume: (() -> Unit)? = null
+
+    override fun onStart() {
+        super.onStart()
+        MascotIconController.onAppForegrounded()
+    }
 
     override fun onResume() {
         super.onResume()
         MascotIconController.onAppOpened(this)
+        refreshWaterOnResume?.invoke()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        MascotIconController.onAppBackgrounded(this)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,7 +93,10 @@ class MainActivity : ComponentActivity() {
             var selectedSection by remember {
                 mutableStateOf(intent.getStringExtra(EXTRA_OPEN_SECTION)?.takeIf { it in setOf("steps", "water", "profile") } ?: "steps")
             }
-            SideEffect { sectionSelection = { section -> selectedSection = section } }
+            SideEffect {
+                sectionSelection = { section -> selectedSection = section }
+                refreshWaterOnResume = { waterRefresh++ }
+            }
             var pendingReminderEnable by remember { mutableStateOf(false) }
             var pendingDailyReminderMinute by remember { mutableIntStateOf(-1) }
             var pendingDrivingFilterEnable by remember { mutableStateOf(false) }

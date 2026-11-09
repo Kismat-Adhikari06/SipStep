@@ -124,7 +124,7 @@ internal fun WaterScreen(
     val rawProgress = totalMl.toFloat() / goal.coerceAtLeast(1)
     val isAboveGoal = rawProgress > 1f
     val progress = rawProgress.coerceIn(0f, 1f)
-    val dateLabel = remember { SimpleDateFormat("EEEE, d MMM", Locale.getDefault()).format(Date()) }
+    val dateLabel = remember(refreshToken) { SimpleDateFormat("EEEE, d MMM", Locale.getDefault()).format(Date()) }
     val avatarPose = when {
         rawProgress > 1f -> MascotPose.OVERFULL
         rawProgress >= 1f -> MascotPose.STAR

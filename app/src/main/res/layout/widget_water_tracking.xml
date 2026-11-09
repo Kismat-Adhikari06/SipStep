@@ -46,7 +46,7 @@
                     android:layout_height="wrap_content"
                     android:fontFamily="sans"
                     android:maxLines="1"
-                    android:text="0 ml"
+                    android:text="Loading…"
                     android:textColor="#182533"
                     android:textSize="21sp"
                     android:textStyle="bold" />
@@ -58,7 +58,7 @@
                     android:layout_marginStart="5dp"
                     android:ellipsize="end"
                     android:maxLines="1"
-                    android:text="of 2,000 ml"
+                    android:text=""
                     android:textColor="#536A76"
                     android:textSize="10sp" />
             </LinearLayout>
@@ -70,7 +70,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:paddingTop="1dp"
-                android:text="2,000 ml to go"
+                android:text="Updating today’s water…"
                 android:textColor="#536A76"
                 android:textSize="11sp" />
 
