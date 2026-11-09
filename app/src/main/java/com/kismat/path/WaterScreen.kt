@@ -129,7 +129,8 @@ internal fun WaterScreen(
         rawProgress > 1f -> MascotPose.OVERFULL
         rawProgress >= 1f -> MascotPose.STAR
         rawProgress < .2f -> MascotPose.DEHYDRATED
-        rawProgress < .8f -> MascotPose.DRINKING
+        rawProgress < .45f -> MascotPose.DRINKING
+        rawProgress < .8f -> MascotPose.REFRESHED
         else -> MascotPose.BOTTLE_CHEER
     }
     val nextReminder = when {
@@ -174,6 +175,7 @@ internal fun WaterScreen(
                                         MascotPose.OVERFULL -> "Wello is splashing above the chosen daily water goal."
                                         MascotPose.STAR -> "Wello celebrates reaching the water goal."
                                         MascotPose.DRINKING -> "Wello drinks water and looks refreshed."
+                                        MascotPose.REFRESHED -> "Wello feels refreshed after a drink and gives you a thumbs-up."
                                         MascotPose.CELEBRATE -> "Wello celebrates progress toward the water goal."
                                         MascotPose.BOTTLE_CHEER -> "Wello cheers while holding up a water bottle, nearly at the daily goal."
                                         else -> "Wello greets you as you make progress on your water goal."

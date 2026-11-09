@@ -41,6 +41,9 @@
         <activity-alias android:name=".LauncherDrinking" android:targetActivity=".MainActivity" android:label="@string/app_name" android:icon="@mipmap/ic_launcher_drinking" android:roundIcon="@mipmap/ic_launcher_drinking" android:enabled="false" android:exported="true">
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
         </activity-alias>
+        <activity-alias android:name=".LauncherRefreshed" android:targetActivity=".MainActivity" android:label="@string/app_name" android:icon="@mipmap/ic_launcher_refreshed" android:roundIcon="@mipmap/ic_launcher_refreshed" android:enabled="false" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+        </activity-alias>
         <activity-alias android:name=".LauncherWalking" android:targetActivity=".MainActivity" android:label="@string/app_name" android:icon="@mipmap/ic_launcher_walking" android:roundIcon="@mipmap/ic_launcher_walking" android:enabled="false" android:exported="true">
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
         </activity-alias>

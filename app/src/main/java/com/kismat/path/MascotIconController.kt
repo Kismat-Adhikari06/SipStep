@@ -21,6 +21,7 @@ internal enum class MascotAppIcon(val launcherAlias: String, val image: Int) {
     DRY("LauncherDry", R.drawable.mascot_dry),
     WAVING("LauncherWaving", R.drawable.mascot_wave),
     DRINKING("LauncherDrinking", R.drawable.mascot_drink),
+    REFRESHED("LauncherRefreshed", R.drawable.mascot_refreshed),
     WALKING("LauncherWalking", R.drawable.mascot_walk),
     BOTTLE_CHEER("LauncherCheering", R.drawable.mascot_bottle_cheer),
     GOAL("LauncherGoal", R.drawable.mascot_star),
@@ -169,7 +170,8 @@ internal object MascotIconController {
             progress > 1f -> MascotAppIcon.OVERFULL
             progress >= 1f -> MascotAppIcon.GOAL
             progress < .2f -> MascotAppIcon.DRY
-            progress < .8f -> MascotAppIcon.DRINKING
+            progress < .45f -> MascotAppIcon.DRINKING
+            progress < .8f -> MascotAppIcon.REFRESHED
             else -> MascotAppIcon.BOTTLE_CHEER
         }
     }

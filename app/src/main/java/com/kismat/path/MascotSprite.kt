@@ -13,6 +13,7 @@ internal enum class MascotPose(val image: Int, val scale: Float = 1f) {
     WAVE_HELLO(R.drawable.mascot_wave),
     WALKING(R.drawable.mascot_walk),
     DRINKING(R.drawable.mascot_drink, 0.94f),
+    REFRESHED(R.drawable.mascot_refreshed),
     CELEBRATE(R.drawable.mascot_celebrate),
     BOTTLE_CHEER(R.drawable.mascot_bottle_cheer),
     TIRED(R.drawable.mascot_tired),
