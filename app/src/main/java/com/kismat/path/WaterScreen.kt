@@ -210,8 +210,7 @@ internal fun WaterScreen(
                     ) {
                         listOf(100, 150, 200, 250, 300).forEach { amount ->
                             QuickWaterButton(amount, isAboveGoal, Modifier.weight(1f)) {
-                                WaterStore.add(context, amount)
-                                entries.add(0, WaterEntry(System.currentTimeMillis(), amount))
+                                entries.add(0, WaterStore.add(context, amount))
                                 MascotIconController.onWaterLogged(context)
                             }
                         }
@@ -286,7 +285,7 @@ internal fun WaterScreen(
                                     Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Text("●", color = Color(0xFF9BC8EB), fontSize = 11.sp, modifier = Modifier.width(32.dp), textAlign = TextAlign.Center)
                                         Text("${entry.amountMl} ml", color = WaterInk, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                                        Text(SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(entry.id)), color = WaterMuted, fontSize = 12.sp)
+                                        Text(SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(entry.loggedAt)), color = WaterMuted, fontSize = 12.sp)
                                         TextButton(
                                             onClick = {
                                                 WaterStore.remove(context, entry.id)
@@ -317,8 +316,7 @@ internal fun WaterScreen(
                 TextButton(onClick = {
                     val ml = customAmount.toIntOrNull()
                     if (ml != null && ml > 0) {
-                        WaterStore.add(context, ml)
-                        entries.add(0, WaterEntry(System.currentTimeMillis(), ml))
+                        entries.add(0, WaterStore.add(context, ml))
                         MascotIconController.onWaterLogged(context)
                         showCustomAmount = false
                     }

@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">SipStep</string>
+    <string name="water_widget_description">Water progress for today and one-tap 250 ml logging from your home screen.</string>
+    <string name="water_widget_name">SipStep Water</string>
 </resources>

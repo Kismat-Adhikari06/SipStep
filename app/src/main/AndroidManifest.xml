@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-permission android:name="com.google.android.gms.permission.ACTIVITY_RECOGNITION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -16,7 +17,8 @@
         android:theme="@style/Theme.KismatPath">
         <activity
             android:name=".MainActivity"
-            android:exported="true" />
+            android:exported="true"
+            android:launchMode="singleTop" />
 
         <activity-alias
             android:name=".LauncherFriendly"
@@ -67,6 +69,21 @@
 
         <receiver android:name=".WaterReminderReceiver" android:exported="false" />
         <receiver android:name=".MascotStateReceiver" android:exported="false" />
+        <receiver android:name=".DrivingActivityReceiver" android:exported="false" />
+        <receiver android:name=".WaterTrackingWidgetProvider" android:label="@string/water_widget_name" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIME_CHANGED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.LOCALE_CHANGED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/water_tracking_widget_info" />
+        </receiver>
+        <receiver android:name=".WaterWidgetActionReceiver" android:exported="false" />
         <receiver android:name=".WaterBootReceiver" android:enabled="true" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

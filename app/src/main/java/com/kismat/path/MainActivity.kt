@@ -28,6 +28,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -40,6 +41,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.Image
 import androidx.compose.ui.text.font.FontWeight
@@ -54,6 +56,8 @@ private val Muted = Color(0xFF667585)
 private val Cloud = Color(0xFFF3F7FB)
 
 class MainActivity : ComponentActivity() {
+    private var sectionSelection: ((String) -> Unit)? = null
+
     override fun onResume() {
         super.onResume()
         MascotIconController.onAppOpened(this)
@@ -65,19 +69,33 @@ class MainActivity : ComponentActivity() {
             val context = this@MainActivity
             var permissionGranted by remember { mutableStateOf(hasActivityPermission()) }
             var steps by remember { mutableLongStateOf(StepStore.steps(context)) }
+            var headerMascotImage by remember { mutableIntStateOf(MascotIconController.currentIcon(context).image) }
             var sensorAvailable by remember { mutableStateOf(StepStore.sensorAvailable(context)) }
+            var drivingFilterEnabled by remember { mutableStateOf(StepStore.drivingFilterEnabled(context)) }
+            var vehicleDetected by remember { mutableStateOf(StepStore.vehicleDetected(context)) }
+            var stepsPaused by remember { mutableStateOf(StepStore.isPaused(context)) }
+            var manuallyPaused by remember { mutableStateOf(StepStore.isManuallyPaused(context)) }
             var refreshKey by remember { mutableIntStateOf(0) }
             var waterRefresh by remember { mutableIntStateOf(0) }
-            var selectedSection by remember { mutableStateOf("steps") }
+            var selectedSection by remember {
+                mutableStateOf(intent.getStringExtra(EXTRA_OPEN_SECTION)?.takeIf { it in setOf("steps", "water", "profile") } ?: "steps")
+            }
+            SideEffect { sectionSelection = { section -> selectedSection = section } }
             var pendingReminderEnable by remember { mutableStateOf(false) }
             var pendingDailyReminderMinute by remember { mutableIntStateOf(-1) }
+            var pendingDrivingFilterEnable by remember { mutableStateOf(false) }
 
             val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
                 permissionGranted = granted
                 if (granted) {
                     startTracking()
+                    if (pendingDrivingFilterEnable) {
+                        StepStore.setDrivingFilterEnabled(context, true)
+                        refreshDrivingDetection()
+                    }
                     refreshKey++
                 }
+                pendingDrivingFilterEnable = false
             }
 
             val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -101,7 +119,12 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(refreshKey) {
                 while (true) {
                     steps = StepStore.steps(context)
+                    headerMascotImage = MascotIconController.currentIcon(context).image
                     sensorAvailable = StepStore.sensorAvailable(context)
+                    drivingFilterEnabled = StepStore.drivingFilterEnabled(context)
+                    vehicleDetected = StepStore.vehicleDetected(context)
+                    stepsPaused = StepStore.isPaused(context)
+                    manuallyPaused = StepStore.isManuallyPaused(context)
                     delay(750)
                 }
             }
@@ -119,7 +142,7 @@ class MainActivity : ComponentActivity() {
                     Column(
                         Modifier.fillMaxSize().statusBarsPadding()
                     ) {
-                        AppHeader(selectedSection)
+                        AppHeader(selectedSection, headerMascotImage)
                         Box(Modifier.fillMaxWidth().weight(1f)) {
                             when (selectedSection) {
                                 "water" -> WaterScreen(
@@ -156,9 +179,30 @@ class MainActivity : ComponentActivity() {
                                     steps = steps,
                                     sensorAvailable = sensorAvailable,
                                     permissionGranted = permissionGranted,
+                                    drivingFilterEnabled = drivingFilterEnabled,
+                                    vehicleDetected = vehicleDetected,
+                                    stepsPaused = stepsPaused,
+                                    manuallyPaused = manuallyPaused,
                                     onEnableSteps = {
                                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) permissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
                                         else permissionGranted = true
+                                    },
+                                    onToggleDrivingFilter = { enabled ->
+                                        if (!enabled) {
+                                            StepStore.setDrivingFilterEnabled(context, false)
+                                            refreshDrivingDetection()
+                                        } else if (hasActivityPermission()) {
+                                            StepStore.setDrivingFilterEnabled(context, true)
+                                            refreshDrivingDetection()
+                                        } else {
+                                            pendingDrivingFilterEnable = true
+                                            permissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                                        }
+                                    },
+                                    onToggleManualPause = {
+                                        StepStore.toggleManualPause(context)
+                                        stepsPaused = StepStore.isPaused(context)
+                                        manuallyPaused = StepStore.isManuallyPaused(context)
                                     },
                                     onResetSteps = {
                                         StepStore.reset(context)
@@ -185,6 +229,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra(EXTRA_OPEN_SECTION)
+            ?.takeIf { it in setOf("steps", "water", "profile") }
+            ?.let { sectionSelection?.invoke(it) }
+    }
+
     private fun hasActivityPermission(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
             ContextCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION) == PackageManager.PERMISSION_GRANTED
@@ -193,10 +245,22 @@ class MainActivity : ComponentActivity() {
         if (!hasActivityPermission()) return
         ContextCompat.startForegroundService(this, Intent(this, StepCounterService::class.java))
     }
+
+    private fun refreshDrivingDetection() {
+        if (!hasActivityPermission()) return
+        ContextCompat.startForegroundService(
+            this,
+            Intent(this, StepCounterService::class.java).setAction(StepCounterService.ACTION_REFRESH_DRIVING_DETECTION)
+        )
+    }
+
+    companion object {
+        const val EXTRA_OPEN_SECTION = "com.kismat.path.OPEN_SECTION"
+    }
 }
 
 @androidx.compose.runtime.Composable
-private fun AppHeader(section: String) {
+private fun AppHeader(section: String, mascotImage: Int) {
     val title = when (section) { "water" -> "Water"; "profile" -> "Profile"; else -> "Steps" }
     val subtitle = when (section) {
         "water" -> "Your daily hydration"
@@ -210,9 +274,10 @@ private fun AppHeader(section: String) {
     ) {
         Box(Modifier.size(44.dp).background(Color(0xFF071830), CircleShape), contentAlignment = Alignment.Center) {
             Image(
-                painter = painterResource(R.mipmap.ic_launcher_foreground),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize()
+                painter = painterResource(mascotImage),
+                contentDescription = "Wello mascot",
+                modifier = Modifier.fillMaxSize().padding(3.dp),
+                contentScale = ContentScale.Fit
             )
         }
         Column {
